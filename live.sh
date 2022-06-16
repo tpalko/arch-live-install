@@ -345,8 +345,8 @@ function menu() {
     3) core_install;;
     4) create_users;;
     5) init_live;;
-    6) echo "not implemented" && exit 
-    7) echo "not implemented" && exit 
+    6) echo "not implemented" && exit;;
+    7) echo "not implemented" && exit;;
     *)  menu;;
   esac 
 }
