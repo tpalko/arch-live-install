@@ -30,13 +30,14 @@ function connect_wireless() {
 
 function create_volumes() {
   _partition \
-    && _create_lvs \
-    && _make_fs    
+    && _create_lvs 
 }
 
 function _partition() {
-  curl -o arch_partition_dump http://${PXE_SERVER}/arch/arch_partition_dump
-  sfdisk ${TARGET_DEVICE} < arch_partition_dump
+  if ! blkid ${PV_PARTITION}; then 
+    curl -o arch_partition_dump http://${PXE_SERVER}/arch/arch_partition_dump
+    sfdisk ${TARGET_DEVICE} < arch_partition_dump
+  fi 
 
 #  fdisk ${TARGET_DEVICE} 
 #  n, enter, enter, +1M, enter 
@@ -46,21 +47,59 @@ function _partition() {
 #  w
 }
 
-function _create_lvs() {  
-  vgcreate ${VG_NAME} ${PV_PARTITION}
-  lvcreate -L ${LV_ROOT_SIZE} -n root ${VG_NAME}
-  lvcreate -L ${LV_VAR_SIZE} -n var ${VG_NAME}
-  lvcreate -L ${LV_TMP_SIZE} -n tmp ${VG_NAME}
-  lvcreate -L ${LV_SWAP_SIZE} -n swap ${VG_NAME}
-  lvcreate -l ${LV_HOME_SIZE} -n home ${VG_NAME}
+function _lv_exists() {
+  lvs --noheaders | grep -E "^${LV_NAME}\s" 2>&1 > /dev/null
 }
 
-function _make_fs() {
-  mkfs.ext4 /dev/${VG_NAME}/root 
-  mkfs.ext4 /dev/${VG_NAME}/var 
-  mkfs.ext4 /dev/${VG_NAME}/tmp 
-  mkfs.ext4 /dev/${VG_NAME}/home 
-  mkswap /dev/${VG_NAME}/swap  
+function _create_lvs() {
+
+  if ! vgs ${VG_NAME}; then 
+    echo "VG ${VG_NAME} doesn't exist, creating.."
+    vgcreate ${VG_NAME} ${PV_PARTITION}
+  else 
+    echo "VG ${VG_NAME} already exists"
+  fi 
+  
+  if [[ ! _lv_exists root ]]; then 
+    echo "LV root doesn't exist, creating.."
+    lvcreate -L ${LV_ROOT_SIZE} -n root ${VG_NAME}
+    mkfs.ext4 /dev/${VG_NAME}/root 
+  else 
+    echo "LV root already exists"
+  fi 
+  
+  if [[ ! _lv_exists var ]]; then 
+    echo "LV var doesn't exist, creating.."
+    lvcreate -L ${LV_VAR_SIZE} -n var ${VG_NAME}
+    mkfs.ext4 /dev/${VG_NAME}/var 
+  else 
+    echo "LV var already exists"
+  fi 
+  
+  if [[ ! _lv_exists tmp ]]; then 
+    echo "LV tmp doesn't exist, creating.."
+    lvcreate -L ${LV_TMP_SIZE} -n tmp ${VG_NAME}
+    mkfs.ext4 /dev/${VG_NAME}/tmp 
+  else 
+    echo "LV tmp already exists"
+  fi 
+  
+  if [[ ! _lv_exists swap ]]; then 
+    echo "LV swap doesn't exist, creating.."
+    lvcreate -L ${LV_SWAP_SIZE} -n swap ${VG_NAME}
+    mkswap /dev/${VG_NAME}/swap  
+  else 
+    echo "LV swap already exists"
+  fi 
+  
+  if [[ ! _lv_exists home ]]; then 
+    echo "LV home doesn't exist, creating.."
+    lvcreate -l ${LV_HOME_SIZE} -n home ${VG_NAME}
+    mkfs.ext4 /dev/${VG_NAME}/home 
+  else 
+    echo "LV home already exists"
+  fi 
+  
 }
 
 function wipe_volumes() {
