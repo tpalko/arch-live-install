@@ -304,7 +304,7 @@ function _check_chroot() {
   ROOT_MOUNT=$(lsblk | grep vg-root | awk '{ print $7 }')
   if [[ "${ROOT_MOUNT}" = "/mnt" ]]; then 
     echo "Please run \"arch-chroot /mnt\""
-    echo "Then re-source live.sh with \"source <(curl -s http://${PXE_SERVER}/arch/live.sh)\""    
+    echo "Then re-source live.sh with \"source <(curl -s http://${PXE_SERVER}${SCRIPT_PATH)\""    
     return 1
   fi 
   
@@ -344,12 +344,12 @@ function init_live() {
 }
 
 function refresh() {
-  source <(curl -s http://${PXE_SERVER_IP}/arch/live.sh)
+  source <(curl -s http://${PXE_SERVER_IP}${SCRIPT_PATH)
 }
 
 function instructions() {
   echo "How you got here: "
-  echo "$ source <(curl -s http://${PXE_SERVER_IP}/arch/live.sh)"
+  echo "$ source <(curl -s http://${PXE_SERVER_IP}${SCRIPT_PATH)"
 
   echo "Menu: "
   echo "$ menu"
