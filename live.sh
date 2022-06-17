@@ -1,12 +1,14 @@
 #!/bin/bash 
 
+# set -e 
+
 function init_networking() {
   timedatectl set-ntp true    
   echo "Setting dns/domain.."
-  resolvectl dns wlan0 ${DNS_SERVER}
-  resolvectl dns eno1 ${DNS_SERVER}
-  resolvectl domain wlan0 ${DNS_DOMAIN} 
-  resolvectl domain eno1 ${DNS_DOMAIN} 
+  resolvectl dns wlan0 ${__ALI_DNS_SERVER}
+  resolvectl dns eno1 ${__ALI_DNS_SERVER}
+  resolvectl domain wlan0 ${__ALI_DNS_DOMAIN} 
+  resolvectl domain eno1 ${__ALI_DNS_DOMAIN} 
   
   connect_wireless
 }
@@ -14,14 +16,14 @@ function init_networking() {
 # function set_wlan() {
 #   echo "iwctl:"
 #   iwctl 
-#   station wlan0 connect ${WIRELESS_SSID} 
+#   station wlan0 connect ${__ALI_WIRELESS_SSID} 
 # }
 
 function connect_wireless() {
   INTERFACE=${1:="wlan0"}
   echo "Configuring ${INTERFACE}.."
   # -- archiso (live) or chroot
-  echo "${WIRELESS_PASSPHRASE}" | wpa_passphrase ${WIRELESS_SSID} > /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
+  echo "${__ALI_WIRELESS_PASSPHRASE}" | wpa_passphrase ${__ALI_WIRELESS_SSID} > /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
   wpa_supplicant -B -D wext -i ${INTERFACE} -c /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
   systemctl enable wpa_supplicant@wlan0
 }
@@ -34,12 +36,12 @@ function create_volumes() {
 }
 
 function _partition() {
-  if ! blkid ${PV_PARTITION}; then 
-    curl -o arch_partition_dump http://${PXE_SERVER}/arch/arch_partition_dump
-    sfdisk ${TARGET_DEVICE} < arch_partition_dump
+  if ! blkid ${__ALI_PV_PARTITION}; then 
+    curl -o arch_partition_dump http://${__ALI_PXE_SERVER}/arch/arch_partition_dump
+    sfdisk ${__ALI_TARGET_DEVICE} < arch_partition_dump
   fi 
 
-#  fdisk ${TARGET_DEVICE} 
+#  fdisk ${__ALI_TARGET_DEVICE} 
 #  n, enter, enter, +1M, enter 
 #  t, 4
 #  n, enter, enter, enter 
@@ -48,54 +50,55 @@ function _partition() {
 }
 
 function _lv_exists() {
+  LV_NAME=$1
   lvs --noheaders | grep -E "^${LV_NAME}\s" 2>&1 > /dev/null
 }
 
 function _create_lvs() {
 
-  if ! vgs ${VG_NAME}; then 
-    echo "VG ${VG_NAME} doesn't exist, creating.."
-    vgcreate ${VG_NAME} ${PV_PARTITION}
+  if ! vgs ${__ALI_VG_NAME}; then 
+    echo "VG ${__ALI_VG_NAME} doesn't exist, creating.."
+    vgcreate ${__ALI_VG_NAME} ${__ALI_PV_PARTITION}
   else 
-    echo "VG ${VG_NAME} already exists"
+    echo "VG ${__ALI_VG_NAME} already exists"
   fi 
   
-  if [[ ! _lv_exists root ]]; then 
+  if [[ ! $(_lv_exists root) ]]; then 
     echo "LV root doesn't exist, creating.."
-    lvcreate -L ${LV_ROOT_SIZE} -n root ${VG_NAME}
-    mkfs.ext4 /dev/${VG_NAME}/root 
+    lvcreate -L ${__ALI_LV_ROOT_SIZE} -n root ${__ALI_VG_NAME}
+    mkfs.ext4 /dev/${__ALI_VG_NAME}/root 
   else 
     echo "LV root already exists"
   fi 
   
-  if [[ ! _lv_exists var ]]; then 
+  if [[ ! $(_lv_exists var) ]]; then 
     echo "LV var doesn't exist, creating.."
-    lvcreate -L ${LV_VAR_SIZE} -n var ${VG_NAME}
-    mkfs.ext4 /dev/${VG_NAME}/var 
+    lvcreate -L ${__ALI_LV_VAR_SIZE} -n var ${__ALI_VG_NAME}
+    mkfs.ext4 /dev/${__ALI_VG_NAME}/var 
   else 
     echo "LV var already exists"
   fi 
   
-  if [[ ! _lv_exists tmp ]]; then 
+  if [[ ! $(_lv_exists tmp) ]]; then 
     echo "LV tmp doesn't exist, creating.."
-    lvcreate -L ${LV_TMP_SIZE} -n tmp ${VG_NAME}
-    mkfs.ext4 /dev/${VG_NAME}/tmp 
+    lvcreate -L ${__ALI_LV_TMP_SIZE} -n tmp ${__ALI_VG_NAME}
+    mkfs.ext4 /dev/${__ALI_VG_NAME}/tmp 
   else 
     echo "LV tmp already exists"
   fi 
   
-  if [[ ! _lv_exists swap ]]; then 
+  if [[ ! $(_lv_exists swap) ]]; then 
     echo "LV swap doesn't exist, creating.."
-    lvcreate -L ${LV_SWAP_SIZE} -n swap ${VG_NAME}
-    mkswap /dev/${VG_NAME}/swap  
+    lvcreate -L ${__ALI_LV_SWAP_SIZE} -n swap ${__ALI_VG_NAME}
+    mkswap /dev/${__ALI_VG_NAME}/swap  
   else 
     echo "LV swap already exists"
   fi 
   
-  if [[ ! _lv_exists home ]]; then 
+  if [[ ! $(_lv_exists home) ]]; then 
     echo "LV home doesn't exist, creating.."
-    lvcreate -l ${LV_HOME_SIZE} -n home ${VG_NAME}
-    mkfs.ext4 /dev/${VG_NAME}/home 
+    lvcreate -l ${__ALI_LV_HOME_SIZE} -n home ${__ALI_VG_NAME}
+    mkfs.ext4 /dev/${__ALI_VG_NAME}/home 
   else 
     echo "LV home already exists"
   fi 
@@ -113,7 +116,7 @@ function wipe_volumes() {
   if [[ "${FORCE}" = "FORCE" ]]; then 
     unmount_volumes
     for LV in root tmp var swap home; do 
-      LV_NAME=/dev/${VG_NAME}/${LV}
+      LV_NAME=/dev/${__ALI_VG_NAME}/${LV}
       echo -n "Delete logical volume ${LV_NAME}? y/N "
       read DEL_LV
       if [[ ${DEL_LV} = "y" ]]; then 
@@ -124,13 +127,13 @@ function wipe_volumes() {
       fi 
     done 
     if [[ $(lvs --noheadings | wc -l) -eq 0 ]]; then 
-      echo -n "No LVs detected. Remove PV ${PV_PARTITION}? y/N "
+      echo -n "No LVs detected. Remove PV ${__ALI_PV_PARTITION}? y/N "
       read DEL_PV
       if [[ "${DEL_PV}" = "y" ]]; then 
-        echo "Deleting PV ${PV_PARTITION}.."
-        pvremove ${PV_PARTITION} --force --force
+        echo "Deleting PV ${__ALI_PV_PARTITION}.."
+        pvremove ${__ALI_PV_PARTITION} --force --force
       else 
-        echo "Skipping PV ${PV_PARTITION} delete.."
+        echo "Skipping PV ${__ALI_PV_PARTITION} delete.."
       fi 
     else 
       echo "LVs detected, not removing PV:"
@@ -138,31 +141,31 @@ function wipe_volumes() {
     fi 
     
     echo "To remove the actual partition:"
-    echo "fdisk ${TARGET_DEVICE}"
+    echo "fdisk ${__ALI_TARGET_DEVICE}"
     echo "d <enter> <enter> d <enter> w <enter>"  
  fi 
 }
 
 function mount_volumes() {
-  echo "Mounting ${VG_NAME}.."
-  mount /dev/${VG_NAME}/root /mnt
+  echo "Mounting ${__ALI_VG_NAME}.."
+  mount /dev/${__ALI_VG_NAME}/root /mnt
   sleep 3
   mkdir -vp /mnt/{var,tmp,home}
   echo "Mounting var.."
-  mount /dev/${VG_NAME}/var /mnt/var 
+  mount /dev/${__ALI_VG_NAME}/var /mnt/var 
   echo "Mounting tmp.."
-  mount /dev/${VG_NAME}/tmp /mnt/tmp 
+  mount /dev/${__ALI_VG_NAME}/tmp /mnt/tmp 
   echo "Mounting home.."
-  mount /dev/${VG_NAME}/home /mnt/home 
+  mount /dev/${__ALI_VG_NAME}/home /mnt/home 
   echo "Mounting swap.."
-  swapon /dev/${VG_NAME}/swap 
+  swapon /dev/${__ALI_VG_NAME}/swap 
 }
 
 function unmount_volumes() {
-  echo "Unmounting ${VG_NAME}.."
+  echo "Unmounting ${__ALI_VG_NAME}.."
   umount /mnt/{tmp,var,home}
   umount /mnt
-  swapoff /dev/${VG_NAME}/swap
+  swapoff /dev/${__ALI_VG_NAME}/swap
 }
 
 ####### END FILESYSTEM #######
@@ -174,7 +177,7 @@ function chroot_configure() {
   _check_chroot || exit
     
   echo "Writing /etc/localtime.."
-  ln -sf /usr/share/zoneinfo/${TIMEZONE} /etc/localtime 
+  ln -sf /usr/share/zoneinfo/${__ALI_TIMEZONE} /etc/localtime 
   echo "Setting hwclock.."
   hwclock --systohc 
   echo "Editing /etc/locale.gen"
@@ -186,13 +189,13 @@ function chroot_configure() {
   locale-gen 
 
   echo "Writing /etc/locale.conf.."
-  echo "LANG=${LOCALE_LANG}" > /etc/locale.conf 
+  echo "LANG=${__ALI_LOCALE_LANG}" > /etc/locale.conf 
   
   echo "Writing /etc/hostname.."
-  echo "${TARGET_HOSTNAME}" > /etc/hostname 
+  echo "${__ALI_TARGET_HOSTNAME}" > /etc/hostname 
   
   echo "Writing /etc/hosts.."
-  printf "127.0.0.1\tlocalhost\n::1\tlocalhost\n127.0.1.1\t ${TARGET_HOSTNAME}.localdomain ${TARGET_HOSTNAME}\n" >> /etc/hosts 
+  printf "127.0.0.1\tlocalhost\n::1\tlocalhost\n127.0.1.1\t ${__ALI_TARGET_HOSTNAME}.localdomain ${__ALI_TARGET_HOSTNAME}\n" >> /etc/hosts 
   
   echo "Editing /etc/mkinitcpio.conf"
   echo "Add lvm2 to HOOKS as shown in examples"
@@ -235,19 +238,19 @@ function create_users() {
   
   _check_chroot || exit
   
-  useradd -m -s /bin/bash ${USER_USERNAME}
-  printf "${USER_PASSWORD}\n${USER_PASSWORD}\n" | passwd ${USER_USERNAME}
+  useradd -m -s /bin/bash ${__ALI_USER_USERNAME}
+  printf "${__ALI_USER_PASSWORD}\n${__ALI_USER_PASSWORD}\n" | passwd ${__ALI_USER_USERNAME}
   
-  useradd -m -s /bin/bash ${DEPLOY_USERNAME} 
-  printf "${DEPLOY_PASSWORD}\n${DEPLOY_PASSWORD}\n" | passwd ${DEPLOY_USERNAME} 
+  useradd -m -s /bin/bash ${__ALI_DEPLOY_USERNAME} 
+  printf "${__ALI_DEPLOY_PASSWORD}\n${__ALI_DEPLOY_PASSWORD}\n" | passwd ${__ALI_DEPLOY_USERNAME} 
 }
 
 function grub_install() {
   
   _check_chroot || exit
   
-  echo "Installing grub to ${TARGET_DEVICE}.."
-  grub-install ${TARGET_DEVICE} 
+  echo "Installing grub to ${__ALI_TARGET_DEVICE}.."
+  grub-install ${__ALI_TARGET_DEVICE} 
   echo "Creating grub.cfg.."
   grub-mkconfig -o /boot/grub/grub.cfg 
 }
@@ -304,7 +307,7 @@ function _check_chroot() {
   ROOT_MOUNT=$(lsblk | grep vg-root | awk '{ print $7 }')
   if [[ "${ROOT_MOUNT}" = "/mnt" ]]; then 
     echo "Please run \"arch-chroot /mnt\""
-    echo "Then re-source live.sh with \"source <(curl -s http://${PXE_SERVER}${SCRIPT_PATH)\""    
+    echo "Then re-enter this script with \"curl -s https://raw.githubusercontent.com/tpalko/arch-live-install/main/live.sh | bash -\""    
     return 1
   fi 
   
@@ -322,7 +325,6 @@ function core_install() {
   echo "$ exit"
   echo "$ unmount_volumes"
   echo "$ shutdown -r now"
-  instructions
 }
 
 function base_install() {
@@ -336,7 +338,6 @@ function base_install() {
 
 function hard_reset() {
   init_networking && wipe_volumes && create_volumes && mount_volumes
-  instructions
 }
 
 function init_live() {
@@ -344,30 +345,53 @@ function init_live() {
 }
 
 function refresh() {
-  source <(curl -s http://${PXE_SERVER_IP}${SCRIPT_PATH)
+  if [[ ! -f ~/.alirc ]]; then 
+    curl -o ~/.alirc https://raw.githubusercontent.com/tpalko/arch-live-install/main/.env.example
+  else 
+    echo "Not updating existing ~/.alirc"
+  fi 
+  curl -s https://raw.githubusercontent.com/tpalko/arch-live-install/main/live.sh | bash -
 }
 
 function instructions() {
-  echo "How you got here: "
-  echo "$ source <(curl -s http://${PXE_SERVER_IP}${SCRIPT_PATH)"
-
   echo "Menu: "
   echo "$ menu"
 }
 
+function environment() {
+  
+  [[ ! -f ~/.alirc ]] && echo "Missing ~/.alirc" && exit 1
+
+  export $(cat ~/.alirc | xargs)
+  env | grep -E "^__ALI_"
+}
+
+function clear_environment() {
+  while read STUF; do 
+    unset ${STUF}
+  done <<< $(env | grep -E "^__ALI_" | sed -E "s/^(.*)=.*$/\1/")
+}
+
 function menu() {
+
+  # trap clear_environment SIGINT   
+  # environment 
+
+  echo "How you got here: "
+  echo "$ curl -s https://raw.githubusercontent.com/tpalko/arch-live-install/main/live.sh | bash -"
   
-  instructions 
-  
-  printf "-- live boot"
-  printf "\t1. hard reset: init_networking, wipe_volumes, create_volumes, mount_volumes"
-  printf "\t2. base install: pacstrap, genfstab"
-  printf "\t3. core install: configuration, core packages, grub"
-  printf "\t4. create users"
-  printf "\t5. maintenance (LV management, boot repair, volume restore): init_networking, mount_volumes"
-  printf "-- native boot"
-  printf "\t6. backup restore: backup_init"
-  printf "\t7. state management: state_init"
+  printf "live boot\n"
+  printf "\t1. hard reset: init_networking, wipe_volumes, create_volumes, mount_volumes\n"
+  printf "\t2. base install: pacstrap, genfstab\n"
+  printf "\t3. core install: configuration, core packages, grub\n"
+  printf "\t4. create users\n"
+  printf "\t5. maintenance (LV management, boot repair, volume restore): init_networking, mount_volumes\n"
+  printf "native boot\n"
+  printf "\t6. backup restore: backup_init\n"
+  printf "\t7. state management: state_init\n"
+  printf "general\n"
+  printf "\t8. refresh this script\n"
+  # printf "\tCTRL-C to quit and clear environment\n"
   
   # -- init_networking: init live system: wireless, DNS, etc. networking 
   # -- wipe_volumes: umount all, cycle through LV, PV, prompt to delete, prompt to delete partition 
@@ -386,8 +410,10 @@ function menu() {
     5) init_live;;
     6) echo "not implemented" && exit;;
     7) echo "not implemented" && exit;;
+    8) refresh && exit;;
     *)  menu;;
   esac 
 }
 
-instructions
+environment 
+menu 
