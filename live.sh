@@ -318,6 +318,9 @@ function _check_chroot() {
 
 function core_install() {
   
+  init_networking 
+  mount_volumes
+  
   _check_chroot || exit 
   
   chroot_install && chroot_configure && grub_install
@@ -328,6 +331,10 @@ function core_install() {
 }
 
 function base_install() {
+  
+  init_networking 
+  mount_volumes
+  
   pacstrap /mnt base linux linux-firmware 
   genfstab -U /mnt >> /mnt/etc/fstab 
   _check_chroot
@@ -381,16 +388,18 @@ function menu() {
   echo "$ curl -s https://raw.githubusercontent.com/tpalko/arch-live-install/main/live.sh | bash -"
   
   printf "live boot\n"
-  printf "\t1. hard reset: init_networking, wipe_volumes, create_volumes, mount_volumes\n"
-  printf "\t2. base install: pacstrap, genfstab\n"
-  printf "\t3. core install: configuration, core packages, grub\n"
+  printf "\t1. hard reset ^1 ^2: wipe_volumes, create_volumes\n"
+  printf "\t2. base install ^1 ^2: pacstrap, genfstab\n"
+  printf "\t3. core install ^1 ^2: configuration, core packages, grub\n"
   printf "\t4. create users\n"
-  printf "\t5. maintenance (LV management, boot repair, volume restore): init_networking, mount_volumes\n"
+  printf "\t5. maintenance ^1 ^2: LV management, boot repair, volume restore\n"
   printf "native boot\n"
   printf "\t6. backup restore: backup_init\n"
   printf "\t7. state management: state_init\n"
   printf "general\n"
   printf "\t8. refresh this script\n"
+  printf "\n"
+  printf "^1 - these steps include init_networking: resolvectl to set up dns/domain @ ${__ALI_DNS_DOMAIN}/${__ALI_DNS_SERVER}\n"
   # printf "\tCTRL-C to quit and clear environment\n"
   
   # -- init_networking: init live system: wireless, DNS, etc. networking 
