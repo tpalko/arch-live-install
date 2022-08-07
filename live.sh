@@ -23,7 +23,7 @@ function connect_wireless() {
   INTERFACE=wlan0 # ${1:="wlan0"}
   echo "Configuring ${INTERFACE}.."
   # -- archiso (live) or chroot
-  [[ ! command -v wpa_supplicant || ! command -v wpa_passphrase ]] && echo "wpa_* tools are not installed, cannot configure wireless networking" && return 1
+  [[ ! $(command -v wpa_supplicant) || ! $(command -v wpa_passphrase) ]] && echo "wpa_* tools are not installed, cannot configure wireless networking" && return 1
   echo "${__ALI_WIRELESS_PASSPHRASE}" | wpa_passphrase ${__ALI_WIRELESS_SSID} > /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
   wpa_supplicant -B -D wext -i ${INTERFACE} -c /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
   systemctl enable wpa_supplicant@wlan0
