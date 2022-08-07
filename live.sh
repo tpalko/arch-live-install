@@ -51,7 +51,15 @@ function _partition() {
 
 function _lv_exists() {
   LV_NAME=$1
-  lvs --noheaders | grep -E "^${LV_NAME}\s" 2>&1 > /dev/null
+  LVS_CMD="lvs --noheadings"
+  LVS_OUT=$(${LVS_CMD})
+  if [[ $? -ne 0 ]]; then 
+    echo "Some failure reading logical volumes:"
+    echo "${LVS_CMD}"
+    echo "${LVS_OUT}"
+    exit 1
+  fi 
+  grep -E "^${LV_NAME}\s" 2>&1 > /dev/null < "${LVS_OUT}" 
 }
 
 function _create_lvs() {
