@@ -375,7 +375,8 @@ function refresh() {
     echo "Great! We'll pull from ${SCRIPT_HOME}"
   fi 
   
-  curl -s ${SCRIPT_HOME} | bash -
+  curl -s ${SCRIPT_HOME} -o live.sh
+  echo "live.sh locally updated on disk"
 }
 
 function environment() {
