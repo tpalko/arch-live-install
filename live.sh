@@ -20,7 +20,7 @@ function init_networking() {
 # }
 
 function connect_wireless() {
-  INTERFACE=${1:="wlan0"}
+  INTERFACE=wlan0 # ${1:="wlan0"}
   echo "Configuring ${INTERFACE}.."
   # -- archiso (live) or chroot
   echo "${__ALI_WIRELESS_PASSPHRASE}" | wpa_passphrase ${__ALI_WIRELESS_SSID} > /etc/wpa_supplicant/wpa_supplicant-wlan0.conf
@@ -307,7 +307,7 @@ function _check_chroot() {
   ROOT_MOUNT=$(lsblk | grep vg-root | awk '{ print $7 }')
   if [[ "${ROOT_MOUNT}" = "/mnt" ]]; then 
     echo "Please run \"arch-chroot /mnt\""
-    echo "Then re-enter this script with \"curl -s https://raw.githubusercontent.com/tpalko/arch-live-install/main/live.sh | bash -\""    
+    echo "Then re-enter this script with \"curl -s ${__ALI_SCRIPT_HOME} | bash -\""    
     return 1
   fi 
   
@@ -352,7 +352,18 @@ function init_live() {
 }
 
 function refresh() {
-  curl -s https://raw.githubusercontent.com/tpalko/arch-live-install/main/live.sh | bash -
+  local SCRIPT_HOME=${__ALI_SCRIPT_HOME}
+  echo "'refresh' will pull from ${SCRIPT_HOME}"
+  echo -n "Is there somewhere else from which you'd rather we pull? y/N "
+  read RATHER 
+  if [[ "${RATHER}" = "y" ]]; then 
+    echo -n "Enter this new location --> "
+    read NEWLOC
+    SCRIPT_HOME=${NEWLOC}
+    echo "Great! We'll pull from ${SCRIPT_HOME}"
+  fi 
+  
+  curl -s ${SCRIPT_HOME} | bash -
 }
 
 function environment() {
@@ -381,7 +392,7 @@ function menu() {
   # environment 
 
   echo "How you got here: "
-  echo "$ curl -s https://raw.githubusercontent.com/tpalko/arch-live-install/main/live.sh | bash -"
+  echo "$ curl -s ${__ALI_SCRIPT_HOME} | bash -"
   
   printf "live boot\n"
   printf "\t1. hard reset ^1 ^2: wipe_volumes, create_volumes\n"
@@ -408,15 +419,24 @@ function menu() {
   printf "? "
   read ACTION 
   case ${ACTION} in
-    1) hard_reset;;
-    2) base_install;;
-    3) core_install;;
-    4) create_users;;
-    5) init_live;;
-    6) echo "not implemented" && exit;;
-    7) echo "not implemented" && exit;;
-    8) refresh && exit;;
-    *)  menu;;
+    1)  hard_reset
+        ;;
+    2)  base_install
+        ;;
+    3)  core_install
+        ;;
+    4)  create_users
+        ;;
+    5)  init_live
+        ;;
+    6)  echo "not implemented" && exit
+        ;;
+    7)  echo "not implemented" && exit
+        ;;
+    8)  refresh && exit
+        ;;
+    # *)  menu
+    #     ;;
   esac 
 }
 
