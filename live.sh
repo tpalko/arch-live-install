@@ -184,6 +184,14 @@ function unmount_volumes() {
 
 ####### ARCH INSTALL #######
 
+function pacman_bootstrap() {
+  pacstrap /mnt base linux linux-firmware 
+}
+
+function generate_fstab() {  
+  genfstab -U /mnt >> /mnt/etc/fstab 
+}
+
 function chroot_configure() {
   
   _check_chroot || exit
@@ -273,14 +281,19 @@ function install_x() {
   pacman -Syu xorg-server xorg-xinit xterm xlockmore xscreensaver xf86-video-intel xclip
 }
 
-function install_windowing_and_desktop() {
+function windowing() {
   #pacman -Syu sugar sugar-runner 
   pacman -Syu spectrwm
-  echo "bar_font = xos4 Terminus:pixelsize=14" > ~/.spectrwm.conf
-  cat /etc/spectrwm/spectrwm_us.conf >> ~/.spectrwm.conf 
+  if [[ ! -f ~/.spectrwm.conf ]]; then 
+    echo "Creating ~/.spectrwm.conf"
+    echo "bar_font = xos4 Terminus:pixelsize=14" > ~/.spectrwm.conf
+    cat /etc/spectrwm/spectrwm_us.conf >> ~/.spectrwm.conf     
+  else 
+    echo "~/.spectrwm.conf already exists"    
+  fi 
 }
 
-function install_display_manager() {
+function display_manager() {
   cd ~
   mkdir -p builds 
   cd builds 
@@ -307,26 +320,17 @@ function audio() {
   systemctl start bluetooth
 }
 
-function multimedia() {
+function video() {
   pacman -Syu kdenlive
 }
 
-function catchall() {
+function dev_tools() {
   pacman -Syu mariadb-clients
 }
 
-function _check_chroot() {
-  ROOT_MOUNT=$(lsblk | grep vg-root | awk '{ print $7 }')
-  if [[ "${ROOT_MOUNT}" = "/mnt" ]]; then 
-    echo "Please run \"arch-chroot /mnt\""
-    echo "Then re-enter this script with \"curl -s ${__ALI_SCRIPT_HOME} | bash -\""    
-    return 1
-  fi 
-  
-  return 0
-}
-
 ######################################
+
+######## MENU TARGETS ########
 
 function core_install() {
   
@@ -347,8 +351,8 @@ function base_install() {
   init_networking 
   mount_volumes
   
-  pacstrap /mnt base linux linux-firmware 
-  genfstab -U /mnt >> /mnt/etc/fstab 
+  pacman_bootstrap && generate_fstab
+  
   _check_chroot
   echo "Then, proceed with configuration, core packages, and grub with "
   echo "$ core_install" 
@@ -361,6 +365,25 @@ function hard_reset() {
 
 function init_live() {
   init_networking && mount_volumes
+}
+
+function minimal_packages() {
+  display_manager && windowing && audio && install_chrome
+}
+
+######## END MENU TARGETS ########
+
+######## UTILITIES ########
+
+function _check_chroot() {
+  ROOT_MOUNT=$(lsblk | grep vg-root | awk '{ print $7 }')
+  if [[ "${ROOT_MOUNT}" = "/mnt" ]]; then 
+    echo "Please run \"arch-chroot /mnt\""
+    echo "Then re-enter this script with \"curl -s ${__ALI_SCRIPT_HOME} | bash -\""    
+    return 1
+  fi 
+  
+  return 0
 }
 
 function refresh() {
@@ -416,8 +439,9 @@ function menu() {
   printf "native boot\n"
   printf "\t6. backup restore: backup_init\n"
   printf "\t7. state management: state_init\n"
+  printf "\t8. install minimal packages\n"
   printf "general\n"
-  printf "\t8. refresh this script\n"
+  printf "\t9. refresh this script\n"
   printf "\n"
   printf "^1 - these steps include init_networking: resolvectl to set up dns/domain @ ${__ALI_DNS_DOMAIN}/${__ALI_DNS_SERVER}\n"
   # printf "\tCTRL-C to quit and clear environment\n"
@@ -446,12 +470,16 @@ function menu() {
         ;;
     7)  echo "not implemented" && exit
         ;;
-    8)  refresh && exit
+    8)  minimal_packages
+        ;;
+    9)  refresh && exit
         ;;
     # *)  menu
     #     ;;
   esac 
 }
+
+######## END UTILITIES ########
 
 environment 
 menu 
