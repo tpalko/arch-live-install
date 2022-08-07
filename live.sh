@@ -352,22 +352,18 @@ function init_live() {
 }
 
 function refresh() {
-  if [[ ! -f ~/.alirc ]]; then 
-    curl -o ~/.alirc https://raw.githubusercontent.com/tpalko/arch-live-install/main/.env.example
-  else 
-    echo "Not updating existing ~/.alirc"
-  fi 
   curl -s https://raw.githubusercontent.com/tpalko/arch-live-install/main/live.sh | bash -
 }
 
-function instructions() {
-  echo "Menu: "
-  echo "$ menu"
-}
-
 function environment() {
-  
-  [[ ! -f ~/.alirc ]] && echo "Missing ~/.alirc" && exit 1
+   
+  if [[ ! -f ~/.alirc ]]; then 
+    curl -o ~/.alirc https://raw.githubusercontent.com/tpalko/arch-live-install/main/.env.example
+    echo "~/.alirc example just pulled. Go configure it and run 'menu'"
+    exit 0
+  else 
+    echo "~/.alirc exists, not pulling the example"
+  fi 
 
   export $(cat ~/.alirc | xargs)
   env | grep -E "^__ALI_"
